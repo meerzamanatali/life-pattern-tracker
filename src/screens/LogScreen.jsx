@@ -28,14 +28,6 @@ function getCurrentTime() {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 }
 
-function getTodayDate() {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 function getDurationMins(startTime, endTime) {
   if (!startTime || !endTime) return null
 
@@ -86,7 +78,7 @@ function getInitialFormState(startTime, endTime) {
 
 function SectionCard({ title, children, subtitle }) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+    <section className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
         {subtitle ? (
@@ -100,7 +92,7 @@ function SectionCard({ title, children, subtitle }) {
 
 function FieldLabel({ children }) {
   return (
-    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+    <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
       {children}
     </label>
   )
@@ -108,7 +100,7 @@ function FieldLabel({ children }) {
 
 function RatingStars({ value, onChange }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex justify-start gap-2">
       {Array.from({ length: 5 }, (_, index) => {
         const rating = index + 1
         const isSelected = rating <= value
@@ -118,10 +110,10 @@ function RatingStars({ value, onChange }) {
             key={rating}
             type="button"
             onClick={() => onChange(value === rating ? 0 : rating)}
-            className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 bg-white text-2xl transition hover:border-yellow-300 dark:border-gray-700 dark:bg-gray-950"
+            className="flex h-10 min-h-10 w-10 min-w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-2xl transition dark:border-gray-700 dark:bg-gray-950"
             aria-label={`Select ${rating} star${rating > 1 ? 's' : ''}`}
           >
-            <span className={isSelected ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}>
+            <span className={isSelected ? 'text-yellow-400' : 'text-gray-300'}>
               ★
             </span>
           </button>
@@ -133,7 +125,7 @@ function RatingStars({ value, onChange }) {
 
 function ChipRow({ options, value, onChange }) {
   return (
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+    <div className="flex flex-wrap gap-2">
       {options.map((option) => {
         const isActive = option === value
 
@@ -143,10 +135,10 @@ function ChipRow({ options, value, onChange }) {
             type="button"
             onClick={() => onChange(isActive ? '' : option)}
             className={[
-              'min-h-12 whitespace-nowrap rounded-full border px-4 py-3 text-sm font-medium transition',
+              'min-h-12 rounded-full border px-3 py-2 text-sm font-medium transition',
               isActive
-                ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
-                : 'border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300',
+                ? 'border-blue-500 bg-blue-500 text-white'
+                : 'border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300',
             ].join(' ')}
           >
             {option}
@@ -296,8 +288,8 @@ export default function LogScreen() {
   }
 
   return (
-    <div className="w-full">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+    <div className="w-full overflow-x-hidden px-4">
+      <div className="mx-auto flex w-full max-w-3xl flex-col">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
             Log
@@ -311,7 +303,7 @@ export default function LogScreen() {
           title="Quick Presets"
           subtitle="Choose a recent activity or leave it unselected and type your own."
         >
-          <div className="grid grid-cols-3 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-3 gap-2 md:grid-cols-4">
             {PRESETS.map((preset) => {
               const isSelected = selectedPreset?.name === preset.name
 
@@ -321,21 +313,23 @@ export default function LogScreen() {
                   type="button"
                   onClick={() => handlePresetClick(preset)}
                   className={[
-                    'flex min-h-24 flex-col items-center justify-center rounded-2xl border px-3 py-4 text-center transition',
+                    'flex min-h-20 flex-col items-center justify-center rounded-xl border border-gray-200 p-2 text-center transition dark:border-gray-700',
                     isSelected
-                      ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-500/10 dark:text-blue-300'
-                      : 'border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200',
+                      ? 'border-2 border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                      : 'bg-white text-gray-700 dark:bg-gray-950 dark:text-gray-200',
                   ].join(' ')}
                 >
                   <span className="text-2xl">{preset.emoji}</span>
-                  <span className="mt-2 text-sm font-medium">{preset.name}</span>
+                  <span className="mt-1 w-full truncate text-center text-xs font-medium">
+                    {preset.name}
+                  </span>
                 </button>
               )
             })}
           </div>
         </SectionCard>
 
-        <form onSubmit={handleSave} className="flex flex-col gap-6">
+        <form onSubmit={handleSave} className="flex flex-col">
           <SectionCard title="Details">
             <div className="grid gap-4">
               <div>
@@ -373,31 +367,33 @@ export default function LogScreen() {
           </SectionCard>
 
           <SectionCard title="Time">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-4">
               <div>
                 <FieldLabel>Start time</FieldLabel>
                 <input
                   type="time"
                   value={form.startTime}
                   onChange={(event) => updateField('startTime', event.target.value)}
-                  className="min-h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-100 p-3 text-base text-gray-900 outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 />
               </div>
+
+              <div className="flex flex-col items-center justify-center rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center dark:border-blue-500/20 dark:bg-blue-500/10">
+                <span className="text-sm text-blue-700 dark:text-blue-300">↓</span>
+                <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                  Duration: <span className="font-semibold">{formatDuration(durationMins)}</span>
+                </p>
+              </div>
+
               <div>
                 <FieldLabel>End time</FieldLabel>
                 <input
                   type="time"
                   value={form.endTime}
                   onChange={(event) => updateField('endTime', event.target.value)}
-                  className="min-h-12 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-100 p-3 text-base text-gray-900 outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 />
               </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-500/20 dark:bg-blue-500/10">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Duration: <span className="font-semibold">{formatDuration(durationMins)}</span>
-              </p>
             </div>
           </SectionCard>
 
@@ -415,7 +411,7 @@ export default function LogScreen() {
 
               <div>
                 <FieldLabel>Mood</FieldLabel>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap justify-start gap-3">
                   {MOODS.map((emoji, index) => {
                     const moodValue = index + 1
                     const isSelected = form.mood === moodValue
@@ -426,9 +422,9 @@ export default function LogScreen() {
                         type="button"
                         onClick={() => updateField('mood', isSelected ? 0 : moodValue)}
                         className={[
-                          'flex h-12 w-12 items-center justify-center rounded-xl border bg-white text-2xl transition dark:bg-gray-950',
+                          'flex min-h-11 min-w-11 items-center justify-center rounded-full border bg-white text-2xl transition dark:bg-gray-950',
                           isSelected
-                            ? 'border-blue-500 ring-2 ring-blue-500/40 dark:border-blue-400'
+                            ? 'border-blue-500 ring-2 ring-blue-500'
                             : 'border-gray-200 dark:border-gray-700',
                         ].join(' ')}
                         aria-label={`Mood ${moodValue}`}
@@ -542,18 +538,20 @@ export default function LogScreen() {
           </SectionCard>
 
           {error ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
               {error}
             </div>
           ) : null}
 
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="min-h-12 w-full rounded-2xl bg-blue-600 px-4 py-4 text-base font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-blue-500 dark:hover:bg-blue-400"
-          >
-            {isSaving ? 'Saving...' : 'Save Entry'}
-          </button>
+          <div className="sticky bottom-20 z-10 mb-4 bg-gray-50/95 pb-4 pt-2 backdrop-blur dark:bg-gray-950/95 md:bottom-4">
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="w-full rounded-xl bg-blue-500 px-4 py-4 text-base font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSaving ? 'Saving...' : 'Save Entry'}
+            </button>
+          </div>
         </form>
       </div>
 
