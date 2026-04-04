@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const PRESETS = [
@@ -181,19 +181,12 @@ export default function LogScreen() {
   const [selectedPreset, setSelectedPreset] = useState(null)
   const [form, setForm] = useState(() => getInitialFormState(initialStartTime, currentTime))
   const [error, setError] = useState('')
-  const [toast, setToast] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
+  const [showToast, setShowToast] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const selectedCategory = selectedPreset?.category || null
   const selectedSubcategory = selectedPreset?.subcategory || null
   const durationMins = getDurationMins(form.startTime, form.endTime)
-
-  useEffect(() => {
-    if (!toast) return undefined
-
-    const timeoutId = window.setTimeout(() => setToast(false), 2000)
-    return () => window.clearTimeout(timeoutId)
-  }, [toast])
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }))
@@ -235,56 +228,105 @@ export default function LogScreen() {
   async function handleSave(event) {
     event.preventDefault()
 
-    const trimmedActivity = form.activityName.trim()
+    const activityName = form.activityName
+    const startTime = form.startTime
+    const endTime = form.endTime
+    const energyBefore = form.energyBefore
+    const energyAfter = form.energyAfter
+    const mood = form.mood
+    const focusQuality = form.focusQuality
+    const trigger = form.trigger
+    const location = form.location
+    const device = form.device
+    const isPlanned = form.planned
+    const regret = form.regret
+    const topic = form.topic
+    const resourceType = form.resourceType
+    const understood = form.understood
+    const note = form.note
 
-    if (!selectedPreset && !trimmedActivity) {
+    if (!selectedPreset && !activityName.trim()) {
       setError('Please select an activity')
       return
     }
 
-    if (!durationMins) {
+    if (!startTime || !endTime) {
+      setError('Please set start and end time')
+      return
+    }
+
+    const [sh, sm] = startTime.split(':').map(Number)
+    const [eh, em] = endTime.split(':').map(Number)
+    const durationMins = eh * 60 + em - (sh * 60 + sm)
+
+    if (durationMins <= 0) {
       setError('End time must be after start time')
       return
     }
 
-    setIsSaving(true)
     setError('')
+    setLoading(true)
 
-    const { error: insertError } = await supabase.from('entries').insert({
-      date: new Date().toISOString().split('T')[0],
-      start_time: form.startTime,
-      end_time: form.endTime,
-      duration_mins: durationMins,
-      activity_name: selectedPreset?.name || trimmedActivity,
-      category: selectedPreset?.category || 'Other',
-      subcategory: selectedPreset?.subcategory || null,
-      energy_before: form.energyBefore || null,
-      energy_after: form.energyAfter || null,
-      mood: form.mood || null,
-      focus_quality: form.focusQuality || null,
-      trigger: form.trigger || null,
-      location: form.location || null,
-      device: form.device || null,
-      is_planned: form.planned,
-      regret: form.regret,
-      topic: form.topic.trim() || null,
-      resource_type: form.resourceType || null,
-      understood: form.understood || null,
-      note: form.note.trim() || null,
-    })
+    const today = new Date().toISOString().split('T')[0]
+
+    const { data, error: insertError } = await supabase
+      .from('entries')
+      .insert([{
+        date: today,
+        start_time: startTime,
+        end_time: endTime,
+        duration_mins: durationMins,
+        activity_name: selectedPreset?.name || activityName.trim(),
+        category: selectedPreset?.category || 'Other',
+        subcategory: selectedPreset?.subcategory || null,
+        energy_before: energyBefore || null,
+        energy_after: energyAfter || null,
+        mood: mood || null,
+        focus_quality: focusQuality || null,
+        trigger: trigger || null,
+        location: location || null,
+        device: device || null,
+        is_planned: isPlanned || false,
+        regret: regret || false,
+        topic: topic || null,
+        resource_type: resourceType || null,
+        understood: understood || null,
+        note: note.trim() || null,
+      }])
+      .select()
+
+    setLoading(false)
 
     if (insertError) {
-      setError(insertError.message || 'Could not save entry')
-      setIsSaving(false)
+      console.error('Save error:', insertError.message)
+      setError(`Failed to save: ${insertError.message}`)
       return
     }
 
-    localStorage.setItem('lastEndTime', form.endTime)
-    setToast(false)
+    console.log('Entry saved!', data)
+    localStorage.setItem('lastEndTime', endTime)
+    setShowToast(true)
+    window.setTimeout(() => setShowToast(false), 2000)
+
     setSelectedPreset(null)
-    setForm(getInitialFormState(form.endTime, getCurrentTime()))
-    window.setTimeout(() => setToast(true), 0)
-    setIsSaving(false)
+    setForm({
+      activityName: '',
+      startTime: endTime,
+      endTime: getCurrentTime(),
+      energyBefore: 0,
+      energyAfter: 0,
+      mood: 0,
+      focusQuality: 0,
+      trigger: '',
+      location: '',
+      device: '',
+      planned: false,
+      regret: false,
+      topic: '',
+      resourceType: '',
+      understood: '',
+      note: '',
+    })
   }
 
   return (
@@ -524,7 +566,7 @@ export default function LogScreen() {
                 </div>
               )}
 
-              <div>
+              <div className="mb-6">
                 <FieldLabel>Note</FieldLabel>
                 <textarea
                   value={form.note}
@@ -543,20 +585,20 @@ export default function LogScreen() {
             </div>
           ) : null}
 
-          <div className="sticky bottom-20 z-10 mb-4 bg-gray-50/95 pb-4 pt-2 backdrop-blur dark:bg-gray-950/95 md:bottom-4">
+          <div className="sticky bottom-20 z-10 mt-4 mb-6 bg-gray-50/95 pb-4 pt-2 backdrop-blur dark:bg-gray-950/95 md:bottom-4">
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={loading}
               className="w-full rounded-xl bg-blue-500 px-4 py-4 text-base font-semibold text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {isSaving ? 'Saving...' : 'Save Entry'}
+              {loading ? 'Saving...' : 'Save Entry'}
             </button>
           </div>
         </form>
       </div>
 
-      {toast ? (
-        <div className="fixed left-1/2 top-4 z-30 -translate-x-1/2 rounded-full bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
+      {showToast ? (
+        <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full bg-green-500 px-6 py-3 text-white shadow-lg">
           Entry saved!
         </div>
       ) : null}
