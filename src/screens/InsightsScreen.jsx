@@ -32,6 +32,10 @@ function formatHourLabel(hour) {
   return `${hour - 12}pm`
 }
 
+function formatRange(start, end) {
+  return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+}
+
 function getCellColor(minutes, type) {
   if (!minutes || minutes === 0) return 'bg-gray-100 dark:bg-gray-800'
 
@@ -73,6 +77,51 @@ function formatDuration(totalMinutes) {
   return `${minutes}m`
 }
 
+function getTotalHours(entries, categories) {
+  const mins = entries
+    .filter((entry) => categories.includes(entry.category))
+    .reduce((sum, entry) => sum + (entry.duration_mins || 0), 0)
+
+  return (mins / 60).toFixed(1)
+}
+
+function getAvgRating(summaries) {
+  const rated = summaries.filter((summary) => summary.day_rating)
+  if (!rated.length) return 'N/A'
+
+  const avg = rated.reduce((sum, summary) => sum + summary.day_rating, 0) / rated.length
+  return avg.toFixed(1)
+}
+
+function getGoalsMet(summaries) {
+  return summaries.filter((summary) => summary.daily_goal_met === true).length
+}
+
+function getTrend(current, last, lowerIsBetter = false) {
+  const curr = parseFloat(current)
+  const prev = parseFloat(last)
+
+  if (Number.isNaN(curr) || Number.isNaN(prev) || curr === prev) {
+    return { arrow: '→', color: 'text-gray-400' }
+  }
+
+  const improved = lowerIsBetter ? curr < prev : curr > prev
+  const pct = prev > 0 ? Math.abs(((curr - prev) / prev) * 100).toFixed(0) : 0
+
+  return improved
+    ? { arrow: `↑ ${pct}%`, color: 'text-green-500' }
+    : { arrow: `↓ ${pct}%`, color: 'text-red-500' }
+}
+
+function getBestDay(summaries) {
+  const rated = summaries.filter((summary) => summary.day_rating)
+  if (!rated.length) return null
+
+  return rated.reduce((best, summary) =>
+    !best || summary.day_rating > best.day_rating ? summary : best
+  , null)
+}
+
 function StatCard({ label, value, valueClassName }) {
   return (
     <div className="flex-1 rounded-xl bg-gray-100 p-3 dark:bg-gray-800">
@@ -88,6 +137,178 @@ function ComingSoonTab({ label }) {
       <BarChart2 className="h-10 w-10 text-gray-300 dark:text-gray-600" />
       <p className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">{label}</p>
       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Coming soon</p>
+    </div>
+  )
+}
+
+function WeekVsWeekTab({ entries, summaries }) {
+  const comparisonData = useMemo(() => {
+    const today = new Date()
+    const currentDayOfWeek = today.getDay()
+    const daysToMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1
+
+    const thisMonday = new Date(today)
+    thisMonday.setDate(today.getDate() - daysToMonday)
+
+    const lastMonday = new Date(thisMonday)
+    lastMonday.setDate(thisMonday.getDate() - 7)
+
+    const lastSunday = new Date(thisMonday)
+    lastSunday.setDate(thisMonday.getDate() - 1)
+
+    const thisMondayStr = thisMonday.toISOString().split('T')[0]
+    const todayStr = today.toISOString().split('T')[0]
+    const lastMondayStr = lastMonday.toISOString().split('T')[0]
+    const lastSundayStr = lastSunday.toISOString().split('T')[0]
+
+    const thisWeekEntries = entries.filter(
+      (entry) => entry.date >= thisMondayStr && entry.date <= todayStr
+    )
+    const lastWeekEntries = entries.filter(
+      (entry) => entry.date >= lastMondayStr && entry.date <= lastSundayStr
+    )
+
+    const thisSummaries = summaries.filter(
+      (summary) => summary.date >= thisMondayStr && summary.date <= todayStr
+    )
+    const lastSummaries = summaries.filter(
+      (summary) => summary.date >= lastMondayStr && summary.date <= lastSundayStr
+    )
+
+    return {
+      thisWeekEntries,
+      lastWeekEntries,
+      thisSummaries,
+      lastSummaries,
+      thisWeekRange: formatRange(thisMonday, today),
+      lastWeekRange: formatRange(lastMonday, lastSunday),
+    }
+  }, [entries, summaries])
+
+  const rows = useMemo(() => {
+    const learningThisWeek = getTotalHours(comparisonData.thisWeekEntries, ['Learning'])
+    const learningLastWeek = getTotalHours(comparisonData.lastWeekEntries, ['Learning'])
+    const workThisWeek = getTotalHours(comparisonData.thisWeekEntries, ['Work'])
+    const workLastWeek = getTotalHours(comparisonData.lastWeekEntries, ['Work'])
+    const socialThisWeek = getTotalHours(comparisonData.thisWeekEntries, ['Social Media'])
+    const socialLastWeek = getTotalHours(comparisonData.lastWeekEntries, ['Social Media'])
+    const ratingThisWeek = getAvgRating(comparisonData.thisSummaries)
+    const ratingLastWeek = getAvgRating(comparisonData.lastSummaries)
+    const goalsThisWeek = String(getGoalsMet(comparisonData.thisSummaries))
+    const goalsLastWeek = String(getGoalsMet(comparisonData.lastSummaries))
+
+    return [
+      {
+        label: 'Learning hours',
+        current: `${learningThisWeek}h`,
+        last: `${learningLastWeek}h`,
+        trend: getTrend(learningThisWeek, learningLastWeek),
+      },
+      {
+        label: 'Work hours',
+        current: `${workThisWeek}h`,
+        last: `${workLastWeek}h`,
+        trend: getTrend(workThisWeek, workLastWeek),
+      },
+      {
+        label: 'Social Media hours',
+        current: `${socialThisWeek}h`,
+        last: `${socialLastWeek}h`,
+        trend: getTrend(socialThisWeek, socialLastWeek, true),
+      },
+      {
+        label: 'Avg day rating',
+        current: ratingThisWeek,
+        last: ratingLastWeek,
+        trend: getTrend(ratingThisWeek, ratingLastWeek),
+      },
+      {
+        label: 'Goals met',
+        current: goalsThisWeek,
+        last: goalsLastWeek,
+        trend: getTrend(goalsThisWeek, goalsLastWeek),
+      },
+    ]
+  }, [comparisonData])
+
+  const bestThisWeek = useMemo(() => getBestDay(comparisonData.thisSummaries), [comparisonData.thisSummaries])
+  const bestLastWeek = useMemo(() => getBestDay(comparisonData.lastSummaries), [comparisonData.lastSummaries])
+
+  if (
+    comparisonData.thisWeekEntries.length === 0 &&
+    comparisonData.lastWeekEntries.length === 0
+  ) {
+    return (
+      <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center dark:border-gray-700 dark:bg-gray-900">
+        <p className="text-xl font-semibold text-gray-900 dark:text-white">Not enough data yet</p>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          Log entries for at least 2 weeks to compare
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-2 border-b border-gray-200 px-4 py-4 dark:border-gray-800">
+          <div />
+          <div className="text-center text-sm font-semibold text-gray-500 dark:text-gray-400">
+            <p>This Week</p>
+            <p className="mt-1 text-xs font-medium">{comparisonData.thisWeekRange}</p>
+          </div>
+          <div className="text-center text-sm font-semibold text-gray-500 dark:text-gray-400">
+            <p>Last Week</p>
+            <p className="mt-1 text-xs font-medium">{comparisonData.lastWeekRange}</p>
+          </div>
+        </div>
+
+        <div className="divide-y divide-gray-200 dark:divide-gray-800">
+          {rows.map((row, index) => (
+            <div
+              key={row.label}
+              className={[
+                'grid grid-cols-[1.2fr_1fr_auto_1fr] items-center gap-3 px-4 py-3',
+                index % 2 === 0 ? 'bg-gray-50 dark:bg-gray-800/50' : 'bg-transparent',
+              ].join(' ')}
+            >
+              <p className="text-sm text-gray-600 dark:text-gray-400">{row.label}</p>
+              <p className="text-center text-base font-semibold text-gray-900 dark:text-white">
+                {row.current}
+              </p>
+              <p className={['text-center text-sm font-semibold', row.trend.color].join(' ')}>
+                {row.trend.arrow}
+              </p>
+              <p className="text-center text-base font-semibold text-gray-900 dark:text-white">
+                {row.last}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex-1 rounded-xl bg-gray-100 p-4 dark:bg-gray-800">
+          <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Best day this week</p>
+          {bestThisWeek ? (
+            <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">
+              {new Date(`${bestThisWeek.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })} {bestThisWeek.day_rating}/10
+            </p>
+          ) : (
+            <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">Not rated yet</p>
+          )}
+        </div>
+        <div className="flex-1 rounded-xl bg-gray-100 p-4 dark:bg-gray-800">
+          <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Best day last week</p>
+          {bestLastWeek ? (
+            <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">
+              {new Date(`${bestLastWeek.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })} {bestLastWeek.day_rating}/10
+            </p>
+          ) : (
+            <p className="mt-2 text-base font-semibold text-gray-900 dark:text-white">Not rated yet</p>
+          )}
+        </div>
+      </section>
     </div>
   )
 }
@@ -427,6 +648,7 @@ function ThisWeekTab({ entries, loading, error }) {
 export default function InsightsScreen() {
   const [activeTab, setActiveTab] = useState('This Week')
   const [entries, setEntries] = useState([])
+  const [summaries, setSummaries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -449,20 +671,35 @@ export default function InsightsScreen() {
       setLoading(true)
       setError('')
 
-      const { data, error: fetchError } = await supabase
-        .from('entries')
-        .select('date, start_time, duration_mins, category, activity_name, regret')
+      const [entriesResult, summariesResult] = await Promise.all([
+        supabase
+          .from('entries')
+          .select('date, start_time, duration_mins, category, activity_name, regret'),
+        supabase
+          .from('daily_summaries')
+          .select('date, day_rating, daily_goal_met'),
+      ])
 
       if (!isMounted) return
 
-      if (fetchError) {
-        setError(fetchError.message || 'Could not load insights')
+      if (entriesResult.error) {
+        setError(entriesResult.error.message || 'Could not load insights')
         setEntries([])
+        setSummaries([])
         setLoading(false)
         return
       }
 
-      setEntries(data || [])
+      if (summariesResult.error) {
+        setError(summariesResult.error.message || 'Could not load insights')
+        setEntries([])
+        setSummaries([])
+        setLoading(false)
+        return
+      }
+
+      setEntries(entriesResult.data || [])
+      setSummaries(summariesResult.data || [])
       setLoading(false)
     }
 
@@ -518,6 +755,14 @@ export default function InsightsScreen() {
         </div>
       ) : (
         <HeatmapTab entries={entries} />
+      ) : activeTab === 'Week vs Week' ? loading ? (
+        <ThisWeekTab entries={weekEntries} loading={loading} error={error} />
+      ) : error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+          {error}
+        </div>
+      ) : (
+        <WeekVsWeekTab entries={entries} summaries={summaries} />
       ) : (
         <ComingSoonTab label={activeTab} />
       )}
