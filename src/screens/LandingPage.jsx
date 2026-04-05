@@ -11,6 +11,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import useAuthStore from '../store/authStore'
 
 const STEPS = [
   {
@@ -141,6 +142,8 @@ function PhoneFrame({ children, className = '' }) {
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const { session, profile, user } = useAuthStore()
+  const firstName = profile?.full_name?.split(' ')[0] || ''
   const [navScrolled, setNavScrolled] = useState(false)
   const [howItWorksRef, howItWorksVisible] = useScrollAnimation(0.2)
   const [demoRef, demoVisible] = useScrollAnimation(0.2)
@@ -165,6 +168,11 @@ export default function LandingPage() {
     const element = document.getElementById(id)
     if (!element) return
     element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  async function handleSignOut() {
+    await useAuthStore.getState().signOut()
+    navigate('/')
   }
 
   return (
@@ -203,22 +211,44 @@ export default function LandingPage() {
             </span>
           </button>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/log')}
-              className="hidden rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300 md:block"
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/log')}
-              className="rounded-full bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
-            >
-              Get Started
-            </button>
-          </div>
+          {!session ? (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/login')}
+                className="hidden rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300 md:block"
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/signup')}
+                className="rounded-full bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+              >
+                Get Started
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <p className="hidden text-sm text-gray-500 dark:text-gray-400 md:block">
+                Hello, {firstName || user?.email?.split('@')[0] || 'there'}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/log')}
+                className="rounded-full bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600"
+              >
+                Open App
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                className="hidden rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-300 md:block"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -264,7 +294,7 @@ export default function LandingPage() {
           >
             <button
               type="button"
-              onClick={() => navigate('/log')}
+              onClick={() => navigate('/signup')}
               className="rounded-full bg-blue-500 px-8 py-4 text-base font-semibold text-white transition-all hover:scale-105 hover:bg-blue-600"
             >
               Start Tracking Free
@@ -608,7 +638,7 @@ export default function LandingPage() {
           </p>
           <button
             type="button"
-            onClick={() => navigate('/log')}
+            onClick={() => navigate('/signup')}
             className="rounded-full bg-blue-500 px-10 py-4 text-lg font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:scale-105 hover:bg-blue-600"
           >
             Create your free account
