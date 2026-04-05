@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { CheckCircle2, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -88,7 +88,6 @@ export default function TodayScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
-  const [summaryId, setSummaryId] = useState(null)
   const [savingSummary, setSavingSummary] = useState(false)
   const [summaryForm, setSummaryForm] = useState({
     wakeTime: '',
@@ -99,6 +98,7 @@ export default function TodayScreen() {
   })
 
   const today = useMemo(() => getTodayDate(), [])
+  const dailyGoal = useMemo(() => localStorage.getItem('dailyGoal') || '', [])
 
   const loadTodayData = useCallback(async () => {
     setLoading(true)
@@ -128,7 +128,6 @@ export default function TodayScreen() {
     setEntries(entriesResult.data || [])
 
     if (summaryResult.data) {
-      setSummaryId(summaryResult.data.id ?? null)
       setSummaryForm({
         wakeTime: summaryResult.data.wake_time || '',
         sleepQuality: summaryResult.data.sleep_quality || 0,
@@ -138,7 +137,6 @@ export default function TodayScreen() {
         note: summaryResult.data.note || '',
       })
     } else {
-      setSummaryId(null)
       setSummaryForm({
         wakeTime: '',
         sleepQuality: 0,
@@ -236,10 +234,26 @@ export default function TodayScreen() {
     return {
       totalLogged: formatMinutes(totalLogged),
       productive: formatMinutes(productive),
+      productiveMins: productive,
       socialMedia: formatMinutes(socialMedia),
       entries: String(entries.length),
     }
   }, [entries])
+
+  const goalProgress = useMemo(() => {
+    if (!dailyGoal) return null
+
+    const match = dailyGoal.match(/(\d+)\s*hour/i)
+    const targetHours = match ? parseInt(match[1], 10) : 2
+    const progress = Math.min((stats.productiveMins / (targetHours * 60)) * 100, 100)
+
+    return {
+      text: dailyGoal,
+      targetHours,
+      progress,
+      met: progress >= 100,
+    }
+  }, [dailyGoal, stats.productiveMins])
 
   if (loading) {
     return (
@@ -279,6 +293,36 @@ export default function TodayScreen() {
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
           {error}
         </div>
+      ) : null}
+
+      {goalProgress ? (
+        <section className="rounded-xl border border-gray-100 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Today&apos;s goal: {goalProgress.text}
+          </p>
+          <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+            <div
+              className={[
+                'h-full rounded-full transition-all',
+                goalProgress.progress >= 100
+                  ? 'bg-green-500'
+                  : goalProgress.progress >= 50
+                    ? 'bg-blue-500'
+                    : 'bg-amber-500',
+              ].join(' ')}
+              style={{ width: `${goalProgress.progress}%` }}
+            />
+          </div>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            {(stats.productiveMins / 60).toFixed(1)}h / {goalProgress.targetHours}h
+          </p>
+          {goalProgress.met ? (
+            <div className="mt-2 flex items-center gap-2 text-sm font-medium text-green-600 dark:text-green-400">
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Goal met today!</span>
+            </div>
+          ) : null}
+        </section>
       ) : null}
 
       <section className="grid grid-cols-2 gap-3">
