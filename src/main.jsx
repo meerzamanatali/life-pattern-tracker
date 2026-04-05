@@ -3,9 +3,9 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
+import { applyTheme, getStoredTheme } from './lib/theme'
 
-const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-if (isDark) document.documentElement.classList.add('dark')
+applyTheme(getStoredTheme())
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

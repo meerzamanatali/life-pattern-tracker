@@ -1,20 +1,6 @@
 import { useMemo, useState } from 'react'
+import { getStoredPresetConfig, mergePresets } from '../constants/presets'
 import { supabase } from '../lib/supabase'
-
-const PRESETS = [
-  { name: 'Instagram', emoji: '📱', category: 'Social Media', subcategory: 'Instagram' },
-  { name: 'YouTube', emoji: '▶️', category: 'Social Media', subcategory: 'YouTube' },
-  { name: 'ML Study', emoji: '🧠', category: 'Learning', subcategory: 'Machine Learning' },
-  { name: 'Coding', emoji: '💻', category: 'Work', subcategory: 'Coding' },
-  { name: 'University', emoji: '🎓', category: 'Learning', subcategory: 'University' },
-  { name: 'Part-time Job', emoji: '💼', category: 'Work', subcategory: 'Job' },
-  { name: 'Reading', emoji: '📚', category: 'Learning', subcategory: 'Books' },
-  { name: 'Exercise', emoji: '🏃', category: 'Self-care', subcategory: 'Exercise' },
-  { name: 'Eating/Cooking', emoji: '🍳', category: 'Self-care', subcategory: 'Food' },
-  { name: 'Cleaning', emoji: '🧹', category: 'Self-care', subcategory: 'Chores' },
-  { name: 'Sleep/Rest', emoji: '😴', category: 'Self-care', subcategory: 'Sleep' },
-  { name: 'Other', emoji: '➕', category: 'Other', subcategory: 'Other' },
-]
 
 const MOODS = ['😞', '😕', '😐', '🙂', '😄']
 const TRIGGERS = ['Boredom', 'Habit', 'Notification', 'Break', 'Planned', 'Other']
@@ -177,7 +163,11 @@ function Toggle({ checked, onChange, label }) {
 
 export default function LogScreen() {
   const currentTime = useMemo(() => getCurrentTime(), [])
-  const initialStartTime = useMemo(() => localStorage.getItem('lastEndTime') || currentTime, [currentTime])
+  const initialStartTime = useMemo(
+    () => localStorage.getItem('lastEndTime') || currentTime,
+    [currentTime]
+  )
+  const presets = useMemo(() => mergePresets(getStoredPresetConfig()), [])
   const [selectedPreset, setSelectedPreset] = useState(null)
   const [form, setForm] = useState(() => getInitialFormState(initialStartTime, currentTime))
   const [error, setError] = useState('')
@@ -257,9 +247,9 @@ export default function LogScreen() {
 
     const [sh, sm] = startTime.split(':').map(Number)
     const [eh, em] = endTime.split(':').map(Number)
-    const durationMins = eh * 60 + em - (sh * 60 + sm)
+    const totalDurationMins = eh * 60 + em - (sh * 60 + sm)
 
-    if (durationMins <= 0) {
+    if (totalDurationMins <= 0) {
       setError('End time must be after start time')
       return
     }
@@ -275,7 +265,7 @@ export default function LogScreen() {
         date: today,
         start_time: startTime,
         end_time: endTime,
-        duration_mins: durationMins,
+        duration_mins: totalDurationMins,
         activity_name: selectedPreset?.name || activityName.trim(),
         category: selectedPreset?.category || 'Other',
         subcategory: selectedPreset?.subcategory || null,
@@ -346,12 +336,12 @@ export default function LogScreen() {
           subtitle="Choose a recent activity or leave it unselected and type your own."
         >
           <div className="grid grid-cols-3 gap-2 md:grid-cols-4">
-            {PRESETS.map((preset) => {
+            {presets.map((preset) => {
               const isSelected = selectedPreset?.name === preset.name
 
               return (
                 <button
-                  key={preset.name}
+                  key={preset.id}
                   type="button"
                   onClick={() => handlePresetClick(preset)}
                   className={[
