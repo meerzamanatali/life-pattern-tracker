@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart, Bar, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { BarChart2 } from 'lucide-react'
+import {
+  BarChart,
+  Bar,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { BarChart2, Calendar, Moon, Sunrise, Zap } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 const TABS = ['This Week', 'Heatmap', 'Week vs Week', 'Patterns']
@@ -10,6 +22,14 @@ const CATEGORY_COLORS = {
   Work: '#14B8A6',
   'Social Media': '#F59E0B',
   'Self-care': '#8B5CF6',
+  Other: '#6B7280',
+}
+const TRIGGER_COLORS = {
+  Boredom: '#EF4444',
+  Habit: '#F59E0B',
+  Notification: '#8B5CF6',
+  Break: '#3B82F6',
+  Planned: '#14B8A6',
   Other: '#6B7280',
 }
 
@@ -122,6 +142,41 @@ function getBestDay(summaries) {
   , null)
 }
 
+function roundToNearestHalfHour(time) {
+  if (!time) return null
+  const [hourString, minuteString] = time.split(':')
+  const hours = Number(hourString)
+  const minutes = Number(minuteString)
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null
+
+  const totalMinutes = hours * 60 + minutes
+  const roundedMinutes = Math.round(totalMinutes / 30) * 30
+  const roundedHours = Math.floor(roundedMinutes / 60) % 24
+  const finalMinutes = roundedMinutes % 60
+
+  return `${String(roundedHours).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`
+}
+
+function formatClockTime(time) {
+  if (!time) return 'N/A'
+  const [hourString, minuteString] = time.split(':')
+  const hours = Number(hourString)
+  const minutes = Number(minuteString)
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return time
+
+  const displayHours = hours % 12 || 12
+  const suffix = hours >= 12 ? 'pm' : 'am'
+
+  return `${displayHours}:${String(minutes).padStart(2, '0')}${suffix}`
+}
+
+function renderStars(value) {
+  const rounded = Math.max(0, Math.min(5, Math.round(value)))
+  return `${'★'.repeat(rounded)}${'☆'.repeat(5 - rounded)}`
+}
+
 function StatCard({ label, value, valueClassName }) {
   return (
     <div className="flex-1 rounded-xl bg-gray-100 p-3 dark:bg-gray-800">
@@ -131,12 +186,424 @@ function StatCard({ label, value, valueClassName }) {
   )
 }
 
+function PatternCard({ title, children }) {
+  return (
+    <section className="mb-4 rounded-xl border border-gray-100 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        {title}
+      </h2>
+      {children}
+    </section>
+  )
+}
+
 function ComingSoonTab({ label }) {
   return (
     <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center dark:border-gray-700 dark:bg-gray-900">
       <BarChart2 className="h-10 w-10 text-gray-300 dark:text-gray-600" />
       <p className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">{label}</p>
       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Coming soon</p>
+    </div>
+  )
+}
+
+function PatternsTab({ entries, summaries }) {
+  const socialEntries = useMemo(
+    () => entries.filter((entry) => entry.category === 'Social Media'),
+    [entries]
+  )
+
+  const triggerData = useMemo(() => {
+    const triggerCounts = new Map()
+
+    socialEntries.forEach((entry) => {
+      if (!entry.trigger) return
+      triggerCounts.set(entry.trigger, (triggerCounts.get(entry.trigger) || 0) + 1)
+    })
+
+    return Array.from(triggerCounts.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((left, right) => right.value - left.value)
+  }, [socialEntries])
+
+  const topTrigger = triggerData[0] || null
+
+  const energyEntries = useMemo(
+    () =>
+      entries.filter(
+        (entry) => entry.energy_before !== null && entry.energy_after !== null
+      ),
+    [entries]
+  )
+
+  const energyData = useMemo(() => {
+    const groups = new Map()
+
+    energyEntries.forEach((entry) => {
+      const category = entry.category || 'Other'
+      const current = groups.get(category) || { total: 0, count: 0 }
+      current.total += entry.energy_after - entry.energy_before
+      current.count += 1
+      groups.set(category, current)
+    })
+
+    return Array.from(groups.entries()).map(([category, value]) => ({
+      category,
+      delta: Number((value.total / value.count).toFixed(1)),
+    }))
+  }, [energyEntries])
+
+  const moodEntries = useMemo(
+    () => entries.filter((entry) => entry.mood !== null),
+    [entries]
+  )
+
+  const moodData = useMemo(() => {
+    const groups = new Map()
+
+    moodEntries.forEach((entry) => {
+      const category = entry.category || 'Other'
+      const current = groups.get(category) || { total: 0, count: 0 }
+      current.total += entry.mood
+      current.count += 1
+      groups.set(category, current)
+    })
+
+    return Array.from(groups.entries())
+      .map(([category, value]) => ({
+        category,
+        avgMood: Number((value.total / value.count).toFixed(1)),
+      }))
+      .sort((left, right) => right.avgMood - left.avgMood)
+  }, [moodEntries])
+
+  const bestDaySummaries = useMemo(
+    () => summaries.filter((summary) => (summary.day_rating || 0) >= 8),
+    [summaries]
+  )
+
+  const bestDayTemplate = useMemo(() => {
+    if (bestDaySummaries.length < 3) return null
+
+    const wakeTimes = new Map()
+
+    bestDaySummaries.forEach((summary) => {
+      const roundedWakeTime = roundToNearestHalfHour(summary.wake_time)
+      if (!roundedWakeTime) return
+      wakeTimes.set(roundedWakeTime, (wakeTimes.get(roundedWakeTime) || 0) + 1)
+    })
+
+    const mostCommonWakeTime =
+      Array.from(wakeTimes.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] || null
+
+    const averageSleepQuality =
+      bestDaySummaries.reduce((sum, summary) => sum + (summary.sleep_quality || 0), 0) /
+      bestDaySummaries.length
+
+    const productiveMinutesByBestDay = bestDaySummaries.reduce((sum, summary) => {
+      const dayProductiveMinutes = entries
+        .filter(
+          (entry) =>
+            entry.date === summary.date &&
+            (entry.category === 'Learning' || entry.category === 'Work')
+        )
+        .reduce((entrySum, entry) => entrySum + (entry.duration_mins || 0), 0)
+
+      return sum + dayProductiveMinutes
+    }, 0)
+
+    return {
+      wakeTime: formatClockTime(mostCommonWakeTime),
+      sleepQuality: Number(averageSleepQuality.toFixed(1)),
+      productiveHours: (productiveMinutesByBestDay / bestDaySummaries.length / 60).toFixed(1),
+      count: bestDaySummaries.length,
+    }
+  }, [bestDaySummaries, entries])
+
+  const focusEntries = useMemo(
+    () =>
+      entries.filter(
+        (entry) => entry.focus_quality !== null && entry.location !== null
+      ),
+    [entries]
+  )
+
+  const focusData = useMemo(() => {
+    const groups = new Map()
+
+    focusEntries.forEach((entry) => {
+      const current = groups.get(entry.location) || { total: 0, count: 0 }
+      current.total += entry.focus_quality
+      current.count += 1
+      groups.set(entry.location, current)
+    })
+
+    return Array.from(groups.entries())
+      .map(([location, value]) => ({
+        location,
+        avgFocus: Number((value.total / value.count).toFixed(1)),
+      }))
+      .sort((left, right) => right.avgFocus - left.avgFocus)
+  }, [focusEntries])
+
+  const plannedBreakdown = useMemo(() => {
+    if (entries.length < 10) return null
+
+    const plannedMinutes = entries
+      .filter((entry) => entry.is_planned === true)
+      .reduce((sum, entry) => sum + (entry.duration_mins || 0), 0)
+    const unplannedMinutes = entries
+      .filter((entry) => entry.is_planned === false)
+      .reduce((sum, entry) => sum + (entry.duration_mins || 0), 0)
+    const totalMinutes = plannedMinutes + unplannedMinutes
+    const plannedPercent = totalMinutes ? Math.round((plannedMinutes / totalMinutes) * 100) : 0
+
+    return {
+      plannedPercent,
+      impulsivePercent: 100 - plannedPercent,
+    }
+  }, [entries])
+
+  return (
+    <div>
+      <PatternCard title="What triggers your social media?">
+        {socialEntries.length < 3 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Log more social media sessions to see trigger patterns
+          </p>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={triggerData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
+                >
+                  {triggerData.map((entry) => (
+                    <Cell key={entry.name} fill={TRIGGER_COLORS[entry.name] || '#6B7280'} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+
+            {topTrigger ? (
+              <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                Your #1 trigger is {topTrigger.name} ({topTrigger.value} sessions)
+              </div>
+            ) : null}
+          </>
+        )}
+      </PatternCard>
+
+      <PatternCard title="Which activities energise vs drain you?">
+        {energyEntries.length < 5 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Fill in energy levels when logging to see this insight
+          </p>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={energyData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                <XAxis dataKey="category" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} domain={[-4, 4]} />
+                <Tooltip formatter={(value) => [Number(value).toFixed(1), 'Energy change']} />
+                <ReferenceLine y={0} stroke="#9CA3AF" />
+                <Bar dataKey="delta" radius={[4, 4, 0, 0]}>
+                  {energyData.map((entry) => (
+                    <Cell
+                      key={entry.category}
+                      fill={entry.delta >= 0 ? '#10B981' : '#EF4444'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+              {energyData.length
+                ? `${energyData
+                    .slice()
+                    .sort((left, right) => right.delta - left.delta)[0].category} gives you the strongest average energy lift.`
+                : 'Fill in energy levels when logging to see this insight'}
+            </p>
+          </>
+        )}
+      </PatternCard>
+
+      <PatternCard title="Mood impact by activity">
+        {moodEntries.length < 5 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Log your mood when tracking to see this insight
+          </p>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart
+                data={moodData}
+                layout="vertical"
+                margin={{ top: 0, right: 30, left: 20, bottom: 0 }}
+              >
+                <XAxis type="number" domain={[0, 5]} tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} width={70} />
+                <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}/5`, 'Avg mood']} />
+                <Bar dataKey="avgMood" radius={[0, 4, 4, 0]}>
+                  {moodData.map((entry) => (
+                    <Cell
+                      key={entry.category}
+                      fill={CATEGORY_COLORS[entry.category] || '#6B7280'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+              {moodData.length
+                ? `${moodData[0].category} has your highest average mood at ${moodData[0].avgMood}/5.`
+                : 'Log your mood when tracking to see this insight'}
+            </p>
+          </>
+        )}
+      </PatternCard>
+
+      <PatternCard title="Your best day template">
+        {bestDayTemplate ? (
+          <>
+            <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-900">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                On your best days you typically...
+              </p>
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <Sunrise className="h-4 w-4" />
+                    <span>Wake up</span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {bestDayTemplate.wakeTime}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <Moon className="h-4 w-4" />
+                    <span>Sleep quality</span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {renderStars(bestDayTemplate.sleepQuality)} {bestDayTemplate.sleepQuality}/5
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <Zap className="h-4 w-4" />
+                    <span>Productive hours</span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {bestDayTemplate.productiveHours}h
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <Calendar className="h-4 w-4" />
+                    <span>Based on</span>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {bestDayTemplate.count} days rated 8+
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+              Your strongest days already show a repeatable pattern.
+            </p>
+          </>
+        ) : (
+          <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+            <p>🔒</p>
+            <p className="mt-2">
+              Rate at least 3 days as 8/10 or higher to unlock your best day template
+            </p>
+          </div>
+        )}
+      </PatternCard>
+
+      <PatternCard title="Focus by location">
+        {focusEntries.length < 5 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Log focus quality and location to see where you work best
+          </p>
+        ) : (
+          <>
+            <div className="space-y-3">
+              {focusData.map((entry, index) => {
+                const rank = ['🥇', '🥈', '🥉'][index] || `${index + 1}.`
+
+                return (
+                  <p key={entry.location} className="text-sm text-gray-700 dark:text-gray-300">
+                    {rank} {entry.location} {renderStars(entry.avgFocus)} {entry.avgFocus}/5
+                  </p>
+                )
+              })}
+            </div>
+
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+              {focusData.length
+                ? `${focusData[0].location} is currently your best focus environment.`
+                : 'Log focus quality and location to see where you work best'}
+            </p>
+          </>
+        )}
+      </PatternCard>
+
+      <PatternCard title="Planned vs impulsive time">
+        {plannedBreakdown ? (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl bg-green-50 p-4 text-center dark:bg-green-900/20">
+                <p className="text-sm text-green-600 dark:text-green-400">Planned</p>
+                <p className="mt-2 text-3xl font-bold text-green-600 dark:text-green-400">
+                  {plannedBreakdown.plannedPercent}%
+                </p>
+              </div>
+              <div className="rounded-xl bg-amber-50 p-4 text-center dark:bg-amber-900/20">
+                <p className="text-sm text-amber-600 dark:text-amber-400">Impulsive</p>
+                <p className="mt-2 text-3xl font-bold text-amber-600 dark:text-amber-400">
+                  {plannedBreakdown.impulsivePercent}%
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+              <div className="flex h-full">
+                <div
+                  className="bg-green-500"
+                  style={{ width: `${plannedBreakdown.plannedPercent}%` }}
+                />
+                <div
+                  className="bg-amber-500"
+                  style={{ width: `${plannedBreakdown.impulsivePercent}%` }}
+                />
+              </div>
+            </div>
+
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+              {plannedBreakdown.plannedPercent >= plannedBreakdown.impulsivePercent
+                ? 'Most of your time is lining up with your intent.'
+                : 'Impulsive time is currently taking the larger share.'}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Log at least 10 entries to see this breakdown
+          </p>
+        )}
+      </PatternCard>
     </div>
   )
 }
@@ -674,10 +1141,10 @@ export default function InsightsScreen() {
       const [entriesResult, summariesResult] = await Promise.all([
         supabase
           .from('entries')
-          .select('date, start_time, duration_mins, category, activity_name, regret'),
+          .select('*'),
         supabase
           .from('daily_summaries')
-          .select('date, day_rating, daily_goal_met'),
+          .select('*'),
       ])
 
       if (!isMounted) return
@@ -763,6 +1230,14 @@ export default function InsightsScreen() {
         </div>
       ) : (
         <WeekVsWeekTab entries={entries} summaries={summaries} />
+      ) : activeTab === 'Patterns' ? loading ? (
+        <ThisWeekTab entries={weekEntries} loading={loading} error={error} />
+      ) : error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+          {error}
+        </div>
+      ) : (
+        <PatternsTab entries={entries} summaries={summaries} />
       ) : (
         <ComingSoonTab label={activeTab} />
       )}
