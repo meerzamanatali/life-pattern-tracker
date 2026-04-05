@@ -11,6 +11,15 @@ import SettingsScreen from './screens/SettingsScreen'
 import BottomNav from './components/BottomNav'
 import useAuthStore from './store/authStore'
 
+const ProtectedAppLayout = ({ children }) => (
+  <ProtectedRoute>
+    <div className="pb-16 md:pb-0 md:pt-16">
+      {children}
+      <BottomNav />
+    </div>
+  </ProtectedRoute>
+)
+
 const App = () => {
   const { session } = useAuthStore()
 
@@ -38,37 +47,33 @@ const App = () => {
           <Route
             path="/log"
             element={
-              <ProtectedRoute>
+              <ProtectedAppLayout>
                 <LogScreen />
-                <BottomNav />
-              </ProtectedRoute>
+              </ProtectedAppLayout>
             }
           />
           <Route
             path="/today"
             element={
-              <ProtectedRoute>
+              <ProtectedAppLayout>
                 <TodayScreen />
-                <BottomNav />
-              </ProtectedRoute>
+              </ProtectedAppLayout>
             }
           />
           <Route
             path="/insights"
             element={
-              <ProtectedRoute>
+              <ProtectedAppLayout>
                 <InsightsScreen />
-                <BottomNav />
-              </ProtectedRoute>
+              </ProtectedAppLayout>
             }
           />
           <Route
             path="/settings"
             element={
-              <ProtectedRoute>
+              <ProtectedAppLayout>
                 <SettingsScreen />
-                <BottomNav />
-              </ProtectedRoute>
+              </ProtectedAppLayout>
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />
