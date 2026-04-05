@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { getStoredPresetConfig, mergePresets } from '../constants/presets'
 import { supabase } from '../lib/supabase'
+import useAuthStore from '../store/authStore'
 
 const MOODS = ['😞', '😕', '😐', '🙂', '😄']
 const TRIGGERS = ['Boredom', 'Habit', 'Notification', 'Break', 'Planned', 'Other']
@@ -162,6 +163,7 @@ function Toggle({ checked, onChange, label }) {
 }
 
 export default function LogScreen() {
+  const { user } = useAuthStore()
   const currentTime = useMemo(() => getCurrentTime(), [])
   const initialStartTime = useMemo(
     () => localStorage.getItem('lastEndTime') || currentTime,
@@ -262,6 +264,7 @@ export default function LogScreen() {
     const { data, error: insertError } = await supabase
       .from('entries')
       .insert([{
+        user_id: user.id,
         date: today,
         start_time: startTime,
         end_time: endTime,

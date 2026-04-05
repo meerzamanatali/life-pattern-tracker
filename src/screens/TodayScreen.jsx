@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import useAuthStore from '../store/authStore'
 
 const CATEGORY_COLORS = {
   Learning: '#3B82F6',
@@ -83,6 +84,7 @@ function StatCard({ label, value }) {
 
 export default function TodayScreen() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [entries, setEntries] = useState([])
   const [expandedId, setExpandedId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -194,6 +196,7 @@ export default function TodayScreen() {
       .from('daily_summaries')
       .upsert(
         {
+          user_id: user.id,
           date: today,
           wake_time: wakeTime || null,
           sleep_quality: sleepQuality || null,
