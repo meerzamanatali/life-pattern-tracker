@@ -14,6 +14,36 @@ const CATEGORY_COLORS = {
 }
 
 const CHART_KEYS = ['Learning', 'Work', 'Social Media', 'Self-care', 'Other']
+const HEATMAP_DAYS = [
+  { key: 1, short: 'Mo', long: 'Monday' },
+  { key: 2, short: 'Tu', long: 'Tuesday' },
+  { key: 3, short: 'We', long: 'Wednesday' },
+  { key: 4, short: 'Th', long: 'Thursday' },
+  { key: 5, short: 'Fr', long: 'Friday' },
+  { key: 6, short: 'Sa', long: 'Saturday' },
+  { key: 0, short: 'Su', long: 'Sunday' },
+]
+const HEATMAP_HOURS = Array.from({ length: 18 }, (_, index) => index + 6)
+
+function formatHourLabel(hour) {
+  if (hour === 0) return '12am'
+  if (hour < 12) return `${hour}am`
+  if (hour === 12) return '12pm'
+  return `${hour - 12}pm`
+}
+
+function getCellColor(minutes, type) {
+  if (!minutes || minutes === 0) return 'bg-gray-100 dark:bg-gray-800'
+
+  const baseColor = type === 'productive' ? '#3B82F6' : '#F59E0B'
+
+  if (minutes < 15) return { backgroundColor: baseColor, opacity: 0.15 }
+  if (minutes < 30) return { backgroundColor: baseColor, opacity: 0.3 }
+  if (minutes < 45) return { backgroundColor: baseColor, opacity: 0.45 }
+  if (minutes < 60) return { backgroundColor: baseColor, opacity: 0.6 }
+  if (minutes < 90) return { backgroundColor: baseColor, opacity: 0.75 }
+  return { backgroundColor: baseColor, opacity: 1 }
+}
 
 function formatDateKey(date) {
   return date.toISOString().split('T')[0]
@@ -58,6 +88,172 @@ function ComingSoonTab({ label }) {
       <BarChart2 className="h-10 w-10 text-gray-300 dark:text-gray-600" />
       <p className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">{label}</p>
       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Coming soon</p>
+    </div>
+  )
+}
+
+function HeatmapTab({ entries }) {
+  const [activeMode, setActiveMode] = useState('productive')
+  const [selectedCell, setSelectedCell] = useState(null)
+  const legendMinutes = [0, 15, 30, 45, 60, 90]
+
+  const heatmapEntries = useMemo(
+    () =>
+      entries.filter((entry) => {
+        if (activeMode === 'productive') {
+          return entry.category === 'Learning' || entry.category === 'Work'
+        }
+
+        return entry.category === 'Social Media'
+      }),
+    [activeMode, entries]
+  )
+
+  const heatmapData = useMemo(() => {
+    const grid = new Map(
+      HEATMAP_DAYS.map((day) => [
+        day.key,
+        Object.fromEntries(HEATMAP_HOURS.map((hour) => [hour, 0])),
+      ])
+    )
+
+    heatmapEntries.forEach((entry) => {
+      if (!entry.date || !entry.start_time) return
+
+      const [hourString] = entry.start_time.split(':')
+      const hour = Number(hourString)
+      if (Number.isNaN(hour) || hour < 6 || hour > 23) return
+
+      const date = new Date(`${entry.date}T00:00:00`)
+      const dayOfWeek = date.getDay()
+      const daySlots = grid.get(dayOfWeek)
+      if (!daySlots) return
+
+      daySlots[hour] += entry.duration_mins || 0
+    })
+
+    return grid
+  }, [heatmapEntries])
+
+  if (entries.length < 7) {
+    return (
+      <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center dark:border-gray-700 dark:bg-gray-900">
+        <p className="text-base font-medium text-gray-900 dark:text-white">
+          Keep logging for 7+ days to see your heatmap pattern
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMode('productive')
+              setSelectedCell(null)
+            }}
+            className={[
+              'rounded-full px-4 py-2 text-sm font-medium transition',
+              activeMode === 'productive'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+            ].join(' ')}
+          >
+            Productive time
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMode('social')
+              setSelectedCell(null)
+            }}
+            className={[
+              'rounded-full px-4 py-2 text-sm font-medium transition',
+              activeMode === 'social'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+            ].join(' ')}
+          >
+            Social Media time
+          </button>
+        </div>
+
+        <div className="mt-5 overflow-x-auto">
+          <div style={{ minWidth: '320px' }}>
+            <div className="grid gap-1" style={{ gridTemplateColumns: '2rem repeat(7, 2.25rem)' }}>
+              <div />
+              {HEATMAP_DAYS.map((day) => (
+                <div
+                  key={day.key}
+                  className="text-center text-xs text-gray-500 dark:text-gray-400"
+                >
+                  {day.short}
+                </div>
+              ))}
+
+              {HEATMAP_HOURS.flatMap((hour) => [
+                <div
+                  key={`label-${hour}`}
+                  className="w-8 pr-1 text-right text-xs text-gray-500 dark:text-gray-400"
+                >
+                  {formatHourLabel(hour)}
+                </div>,
+                ...HEATMAP_DAYS.map((day) => {
+                  const minutes = heatmapData.get(day.key)?.[hour] || 0
+                  const label = `${day.long} ${formatHourLabel(hour)} — ${formatDuration(minutes)} ${
+                    activeMode === 'productive' ? 'productive' : 'social media'
+                  }`
+
+                  return (
+                    <button
+                      key={`${day.key}-${hour}`}
+                      type="button"
+                      onClick={() => setSelectedCell(label)}
+                      onMouseEnter={() => setSelectedCell(label)}
+                      className={
+                        minutes === 0
+                          ? 'h-7 w-9 rounded-sm bg-gray-100 transition dark:bg-gray-800'
+                          : 'h-7 w-9 rounded-sm transition'
+                      }
+                      style={minutes === 0 ? undefined : getCellColor(minutes, activeMode)}
+                      aria-label={label}
+                    />
+                  )
+                }),
+              ])}
+            </div>
+          </div>
+        </div>
+
+        {selectedCell ? (
+          <div className="mt-4 rounded-lg bg-gray-800 p-2 text-xs text-white dark:bg-gray-700">
+            {selectedCell}
+          </div>
+        ) : null}
+
+        <div className="mt-4">
+          <div className="flex items-center gap-1">
+            {legendMinutes.map((minutes) => (
+              <div
+                key={minutes}
+                className={
+                  minutes === 0
+                    ? 'h-4 w-4 rounded-sm bg-gray-100 dark:bg-gray-800'
+                    : 'h-4 w-4 rounded-sm'
+                }
+                style={minutes === 0 ? undefined : getCellColor(minutes, activeMode)}
+              />
+            ))}
+          </div>
+          <div className="mt-2 flex justify-between text-xs text-gray-400">
+            <span>Less</span>
+            <span>More</span>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
@@ -234,6 +430,18 @@ export default function InsightsScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const weekEntries = useMemo(() => {
+    const today = new Date()
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(today.getDate() - 6)
+    const fromDate = sevenDaysAgo.toISOString().split('T')[0]
+    const toDate = today.toISOString().split('T')[0]
+
+    return entries
+      .filter((entry) => entry.date >= fromDate && entry.date <= toDate)
+      .sort((left, right) => left.date.localeCompare(right.date))
+  }, [entries])
+
   useEffect(() => {
     let isMounted = true
 
@@ -241,18 +449,9 @@ export default function InsightsScreen() {
       setLoading(true)
       setError('')
 
-      const today = new Date()
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(today.getDate() - 6)
-      const fromDate = sevenDaysAgo.toISOString().split('T')[0]
-      const toDate = today.toISOString().split('T')[0]
-
       const { data, error: fetchError } = await supabase
         .from('entries')
-        .select('*')
-        .gte('date', fromDate)
-        .lte('date', toDate)
-        .order('date', { ascending: true })
+        .select('date, start_time, duration_mins, category, activity_name, regret')
 
       if (!isMounted) return
 
@@ -310,7 +509,15 @@ export default function InsightsScreen() {
       </div>
 
       {activeTab === 'This Week' ? (
-        <ThisWeekTab entries={entries} loading={loading} error={error} />
+        <ThisWeekTab entries={weekEntries} loading={loading} error={error} />
+      ) : activeTab === 'Heatmap' ? loading ? (
+        <ThisWeekTab entries={weekEntries} loading={loading} error={error} />
+      ) : error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+          {error}
+        </div>
+      ) : (
+        <HeatmapTab entries={entries} />
       ) : (
         <ComingSoonTab label={activeTab} />
       )}
