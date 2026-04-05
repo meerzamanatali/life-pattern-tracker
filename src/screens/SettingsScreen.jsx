@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { GripVertical, Pencil, Trash2 } from 'lucide-react'
 import {
   DEFAULT_PRESETS,
@@ -9,6 +10,7 @@ import {
 } from '../constants/presets'
 import { supabase } from '../lib/supabase'
 import { getStoredTheme, setTheme } from '../lib/theme'
+import useAuthStore from '../store/authStore'
 
 const CATEGORY_BADGE_STYLES = {
   Learning: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
@@ -90,6 +92,8 @@ function buildCsv(entries) {
 }
 
 export default function SettingsScreen() {
+  const { user, profile } = useAuthStore()
+  const navigate = useNavigate()
   const [presetConfig, setPresetConfig] = useState(() => getStoredPresetConfig())
   const [showPresetForm, setShowPresetForm] = useState(false)
   const [editingPreset, setEditingPreset] = useState(null)
@@ -102,8 +106,21 @@ export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [clearingData, setClearingData] = useState(false)
+  const [accountStats, setAccountStats] = useState({
+    totalEntries: 0,
+    daysTracked: 0,
+    memberDays: 0,
+  })
 
   const presets = useMemo(() => mergePresets(presetConfig), [presetConfig])
+  const avatarLetter = profile?.full_name?.[0]?.toUpperCase() || 'U'
+  const memberSince = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : ''
 
   useEffect(() => {
     if (!toast) return undefined
@@ -118,6 +135,44 @@ export default function SettingsScreen() {
     const timeoutId = window.setTimeout(() => setGoalSaved(false), 1200)
     return () => window.clearTimeout(timeoutId)
   }, [goalSaved])
+
+  useEffect(() => {
+    if (!user?.created_at) return undefined
+
+    let isActive = true
+
+    async function loadAccountStats() {
+      const { count } = await supabase.from('entries').select('id', {
+        count: 'exact',
+        head: true,
+      })
+      const { data: entryDates } = await supabase.from('entries').select('date')
+
+      if (!isActive) return
+
+      const uniqueDates = new Set((entryDates || []).map((entry) => entry.date).filter(Boolean))
+      const memberDays = Math.floor(
+        (new Date() - new Date(user.created_at)) / (1000 * 60 * 60 * 24)
+      )
+
+      setAccountStats({
+        totalEntries: count || 0,
+        daysTracked: uniqueDates.size,
+        memberDays: Math.max(memberDays, 0),
+      })
+    }
+
+    void loadAccountStats()
+
+    return () => {
+      isActive = false
+    }
+  }, [user?.created_at])
+
+  async function handleSignOut() {
+    await useAuthStore.getState().signOut()
+    navigate('/')
+  }
 
   function updatePresetConfig(nextConfig) {
     setPresetConfig(nextConfig)
@@ -293,6 +348,55 @@ export default function SettingsScreen() {
       </div>
 
       <div className="mt-6">
+        <SectionTitle>Account</SectionTitle>
+        <div className="mb-4 rounded-2xl border border-gray-100 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+          <div className="mb-6 flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-500 text-2xl font-bold text-white">
+              {avatarLetter}
+            </div>
+            <div>
+              <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                {profile?.full_name || 'User'}
+              </p>
+              <p className="text-sm text-gray-500">{user?.email}</p>
+              <p className="mt-1 text-xs text-gray-400">
+                Member since {memberSince || 'today'}
+              </p>
+            </div>
+          </div>
+
+          <div className="my-4 border-t border-gray-100 dark:border-gray-700" />
+
+          <div className="mb-6 grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {accountStats.totalEntries}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">Total entries</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {accountStats.daysTracked}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">Days tracked</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {accountStats.memberDays}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">Days as member</p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            className="w-full rounded-xl border border-red-200 py-3 text-sm font-medium text-red-500 transition hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20"
+          >
+            Sign out
+          </button>
+        </div>
+
         <SectionTitle>Quick-tap Presets</SectionTitle>
         <SectionCard>
           <div className="space-y-3">
