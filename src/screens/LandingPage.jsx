@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Clock,
   Zap,
   Battery,
   LayoutGrid,
@@ -204,9 +203,9 @@ export default function LandingPage() {
         ].join(' ')}
       >
         <div className="mx-auto flex h-full max-w-6xl items-center justify-between">
-          <button type="button" onClick={() => navigate('/')} className="flex items-center">
-            <Clock className="h-5 w-5 text-blue-500" />
-            <span className="ml-2 font-bold text-gray-900 dark:text-white">
+          <button type="button" onClick={() => navigate('/')} className="flex items-center gap-2.5">
+            <img src="/apple-touch-icon.png" alt="logo" className="h-10 w-10 rounded-xl" />
+            <span className="text-base font-bold text-gray-900 dark:text-white">
               Life Pattern Tracker
             </span>
           </button>
@@ -650,9 +649,9 @@ export default function LandingPage() {
       <footer className="border-t border-gray-100 bg-gray-50 px-6 py-12 dark:border-gray-800 dark:bg-gray-900">
         <div className="mx-auto grid max-w-5xl grid-cols-1 items-start gap-8 md:grid-cols-3">
           <div>
-            <div className="flex items-center">
-              <Clock className="h-5 w-5 text-blue-500" />
-              <span className="ml-2 font-bold text-gray-900 dark:text-white">
+            <div className="flex items-center gap-2.5">
+              <img src="/apple-touch-icon.png" alt="logo" className="h-10 w-10 rounded-xl" />
+              <span className="text-base font-bold text-gray-900 dark:text-white">
                 Life Pattern Tracker
               </span>
             </div>

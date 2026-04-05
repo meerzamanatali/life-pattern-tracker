@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Clock, ClipboardList, Calendar, BarChart2, Settings } from 'lucide-react'
+import { ClipboardList, Calendar, BarChart2, Settings } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 
 const navItems = [
@@ -57,10 +57,12 @@ export default function BottomNav() {
         <button
           type="button"
           onClick={() => navigate('/log')}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2.5"
         >
-          <Clock size={20} color="#3B82F6" />
-          <span className="font-bold text-gray-900 dark:text-white">Life Pattern Tracker</span>
+          <img src="/apple-touch-icon.png" alt="logo" className="h-10 w-10 rounded-xl" />
+          <span className="text-base font-bold text-gray-900 dark:text-white">
+            Life Pattern Tracker
+          </span>
         </button>
 
         <div className="flex items-center gap-6">

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Clock, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import useAuthStore from '../store/authStore'
 
 export default function SignupScreen() {
@@ -54,9 +54,15 @@ export default function SignupScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6 dark:bg-gray-950">
       <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-8 dark:border-gray-800 dark:bg-gray-900">
-        <div className="mb-8 flex items-center justify-center gap-2">
-          <Clock size={20} color="#3B82F6" />
-          <span className="font-bold text-gray-900 dark:text-white">Life Pattern Tracker</span>
+        <div className="mb-8 flex items-center justify-center gap-2.5">
+          <img
+            src="/apple-touch-icon.png"
+            alt="logo"
+            className="mx-auto h-14 w-14 rounded-2xl"
+          />
+          <span className="text-lg font-bold text-gray-900 dark:text-white">
+            Life Pattern Tracker
+          </span>
         </div>
 
         <h1 className="mb-1 text-center text-2xl font-bold text-gray-900 dark:text-white">
